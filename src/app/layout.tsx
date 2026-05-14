@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { DashboardProvider } from "@/context/dashboard-context";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -25,7 +26,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full dark antialiased`}>
-      <body className="flex min-h-full flex-col bg-[#030712]">{children}</body>
+      <body className="flex min-h-full flex-col bg-[#030712]">
+        <DashboardProvider>{children}</DashboardProvider>
+      </body>
     </html>
   );
 }

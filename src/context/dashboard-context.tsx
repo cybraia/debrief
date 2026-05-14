@@ -48,30 +48,38 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const [agenda, setAgenda] = useState<AgendaItem[]>(defaultAgenda);
   const [tasks, setTasks] = useState<string[]>([]);
   const [captures, setCaptures] = useState<CaptureEntry[]>([]);
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    /* eslint-disable react-hooks/set-state-in-effect -- one-time localStorage hydrate */
-    setAgenda(loadJson("ff-agenda", defaultAgenda));
-    setTasks(loadJson("ff-tasks", [] as string[]));
-    setCaptures(loadJson("ff-captures", [] as CaptureEntry[]));
-    /* eslint-enable react-hooks/set-state-in-effect */
+    const a = loadJson("ff-agenda", defaultAgenda);
+    const t = loadJson("ff-tasks", [] as string[]);
+    const c = loadJson("ff-captures", [] as CaptureEntry[]);
+    console.log("Dashboard Hydrating:", { agendaCount: a.length, taskCount: t.length });
+    setAgenda(a);
+    setTasks(t);
+    setCaptures(c);
+    setHydrated(true);
   }, []);
 
   useEffect(() => {
+    if (!hydrated) return;
     localStorage.setItem("ff-agenda", JSON.stringify(agenda));
-  }, [agenda]);
+  }, [agenda, hydrated]);
 
   useEffect(() => {
+    if (!hydrated) return;
     localStorage.setItem("ff-tasks", JSON.stringify(tasks));
-  }, [tasks]);
+  }, [tasks, hydrated]);
 
   useEffect(() => {
+    if (!hydrated) return;
     localStorage.setItem("ff-captures", JSON.stringify(captures));
-  }, [captures]);
+  }, [captures, hydrated]);
 
   const addTask = useCallback((t: string) => {
     const v = t.trim();
     if (!v) return;
+    console.log("Adding task to state:", v);
     setTasks((prev) => [...prev, v]);
   }, []);
 

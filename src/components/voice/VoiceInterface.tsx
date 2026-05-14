@@ -80,21 +80,47 @@ function parseUserVoiceCommand(
   actions: {
     clearTasks: () => void;
     addCapture: (t: string) => void;
+    addTask: (t: string) => void;
     brief: (conv: VoiceConversation) => void;
   },
   conv: VoiceConversation,
 ) {
   const lower = message.toLowerCase();
-  if (/\bclear\s+tasks?\b/i.test(lower)) {
-    actions.clearTasks();
+
+  // 1. Check for Agenda clearing
+  if (/\bclear\s+agenda\b/i.test(lower)) {
+    dashRef.current.setAgenda([]);
   }
-  const capture = message.match(/capture note[:\s]+([\s\S]+)/i);
+
+  // 2. Check for Capture Note
+  const capture = message.match(/(?:capture note|save note)[:\s]+([\s\S]+)/i);
   if (capture?.[1]) {
     actions.addCapture(capture[1].trim());
   }
+
+  // 3. Check for Priority Tasks (Smarter matching)
+  // Matches: "Add a task called buy milk", "Remind me to call John", "Buy eggs - this is a priority task"
+  let taskContent = "";
+  const addTaskMatch = message.match(/(?:add\s+(?:a\s+)?task(?:\s+called)?|remind\s+me\s+to)[:\s]+([\s\S]+)/i);
+  const prioritySuffixMatch = message.match(/([\s\S]+?)(?:\s+(?:is\s+a\s+priority\s+task|priority\s+task))\b/i);
+
+  if (addTaskMatch?.[1]) {
+    taskContent = addTaskMatch[1].trim();
+  } else if (prioritySuffixMatch?.[1]) {
+    taskContent = prioritySuffixMatch[1].trim();
+  }
+
+  if (taskContent) {
+    console.log("Task identified from transcript:", taskContent);
+    actions.addTask(taskContent);
+  }
+
+  // 4. Briefing
   if (lower.includes("brief me")) {
     actions.brief(conv);
   }
+
+  console.log("Voice Command Debug:", { lower, hasCapture: !!capture, hasTask: !!taskContent });
 }
 
 export function VoiceInterface({ children }: { children: React.ReactNode }) {
@@ -123,8 +149,12 @@ export function VoiceInterface({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!listenOn) {
-      void convRef.current?.endSession();
+      const c = convRef.current;
       convRef.current = null;
+      if (c) {
+        console.log("Cleaning up voice session (listenOn became false)");
+        void c.endSession();
+      }
       /* eslint-disable react-hooks/set-state-in-effect -- reset UI when session off */
       setStatus("disconnected");
       setMode(null);
@@ -166,11 +196,29 @@ export function VoiceInterface({ children }: { children: React.ReactNode }) {
               dashRef.current.addCapture(String(text));
               return "Note added to Quick Capture.";
             },
+            add_task: async ({ task }: { task: string }) => {
+              console.log("Tool Call: add_task", task);
+              dashRef.current.addTask(String(task));
+              return "Added.";
+            },
+            add_multiple_tasks: async ({ tasks }: { tasks: string[] }) => {
+              console.log("Tool Call: add_multiple_tasks", tasks);
+              if (Array.isArray(tasks)) {
+                tasks.forEach(t => dashRef.current.addTask(String(t)));
+              }
+              return "All tasks added.";
+            },
+            clear_agenda: async () => {
+              console.log("Tool Call: clear_agenda");
+              dashRef.current.setAgenda([]);
+              return "Cleared.";
+            },
             get_dashboard_brief: async () => {
               return dashRef.current.formatBriefForAgent();
             },
           },
           onConnect: () => {
+            console.log("Voice Session Connected!");
             setThinking(false);
           },
           onDisconnect: () => {
@@ -184,6 +232,7 @@ export function VoiceInterface({ children }: { children: React.ReactNode }) {
           },
           onMessage: (props: MessagePayload) => {
             if (props.role === "user") {
+              console.log("AI heard (transcript):", props.message);
               setThinking(true);
               if (thinkingTimer.current) clearTimeout(thinkingTimer.current);
               thinkingTimer.current = setTimeout(() => setThinking(false), 4500);
@@ -192,6 +241,7 @@ export function VoiceInterface({ children }: { children: React.ReactNode }) {
                 {
                   clearTasks: () => dashRef.current.clearTasks(),
                   addCapture: (t) => dashRef.current.addCapture(t),
+                  addTask: (t) => dashRef.current.addTask(t),
                   brief: runBrief,
                 },
                 conv,
@@ -206,7 +256,10 @@ export function VoiceInterface({ children }: { children: React.ReactNode }) {
             setMode(m);
             if (m === "speaking") setThinking(false);
           },
-          onStatusChange: ({ status: s }) => setStatus(s),
+          onStatusChange: ({ status: s }) => {
+            console.log("Voice Status Change:", s);
+            setStatus(s);
+          },
           onVadScore: ({ vadScore: v }) => setVadScore(v),
         })) as VoiceConversation;
 
@@ -238,8 +291,12 @@ export function VoiceInterface({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
       cancelAnimationFrame(raf);
-      void convRef.current?.endSession();
+      const c = convRef.current;
       convRef.current = null;
+      if (c) {
+        console.log("Effect cleanup: ending session");
+        void c.endSession();
+      }
     };
   }, [listenOn]);
 
@@ -259,12 +316,12 @@ export function VoiceInterface({ children }: { children: React.ReactNode }) {
     rec.onresult = (ev: SpeechRecognitionEvent) => {
       for (let i = ev.resultIndex; i < ev.results.length; i++) {
         const text = ev.results[i][0].transcript.toLowerCase();
-        if (/\b(focus flow|focus on|hey focus)\b/.test(text)) {
+        if (/\b(focus flow|focus on|hey alex)\b/.test(text)) {
           setListenOn(true);
         }
       }
     };
-    rec.onerror = () => {};
+    rec.onerror = () => { };
     try {
       rec.start();
     } catch {

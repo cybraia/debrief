@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useEffect, useState } from "react";
 import {
   Calendar,
   CheckCircle2,
@@ -30,11 +31,17 @@ export function DashboardView() {
     tasks,
     addTask,
     removeTask,
+    clearTasks,
     captures,
     addCapture,
     clearCaptures,
   } = useDashboard();
   const voice = useVoice();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#030712] text-slate-100">
@@ -59,6 +66,7 @@ export function DashboardView() {
           <div className="flex flex-wrap items-center gap-3">
             <button
               type="button"
+              suppressHydrationWarning
               onClick={() => voice.setListenOn(!voice.listenOn)}
               className={`flex items-center gap-3 rounded-xl border px-5 py-4 text-lg font-semibold transition ${
                 voice.listenOn
@@ -135,29 +143,31 @@ export function DashboardView() {
                 </h2>
               </div>
               <ul className="space-y-3">
-                {agenda.map((item) => (
-                  <li
-                    key={item.id}
-                    className="flex items-start gap-3 rounded-lg border border-white/5 bg-slate-900/50 px-3 py-3"
-                  >
-                    <span className="shrink-0 rounded-md bg-cyan-500/15 px-2 py-1 font-mono text-sm text-cyan-200">
-                      {item.time}
-                    </span>
-                    <input
-                      className="min-w-0 flex-1 bg-transparent text-lg text-white outline-none placeholder:text-slate-600"
-                      value={item.title}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        setAgenda((prev) =>
-                          prev.map((a) =>
-                            a.id === item.id ? { ...a, title: v } : a,
-                          ),
-                        );
-                      }}
-                      aria-label={`Agenda ${item.time}`}
-                    />
-                  </li>
-                ))}
+                {mounted &&
+                  agenda.map((item) => (
+                    <li
+                      key={item.id}
+                      className="flex items-start gap-3 rounded-lg border border-white/5 bg-slate-900/50 px-3 py-3"
+                    >
+                      <span className="shrink-0 rounded-md bg-cyan-500/15 px-2 py-1 font-mono text-sm text-cyan-200">
+                        {item.time}
+                      </span>
+                      <input
+                        className="min-w-0 flex-1 bg-transparent text-lg text-white outline-none placeholder:text-slate-600"
+                        suppressHydrationWarning
+                        value={item.title}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setAgenda((prev) =>
+                            prev.map((a) =>
+                              a.id === item.id ? { ...a, title: v } : a,
+                            ),
+                          );
+                        }}
+                        aria-label={`Agenda ${item.time}`}
+                      />
+                    </li>
+                  ))}
               </ul>
             </motion.div>
 
@@ -172,6 +182,13 @@ export function DashboardView() {
                     Priority Tasks
                   </h2>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => clearTasks()}
+                  className="text-sm text-slate-500 hover:text-rose-300"
+                >
+                  Clear all
+                </button>
               </div>
               <form
                 className="mb-3 flex gap-2"
@@ -196,28 +213,29 @@ export function DashboardView() {
                 </button>
               </form>
               <ul className="max-h-48 space-y-2 overflow-y-auto pr-1">
-                {tasks.length === 0 ? (
-                  <li className="text-base text-slate-500">
-                    No tasks — say &quot;capture note …&quot; or add above.
-                  </li>
-                ) : (
-                  tasks.map((t, i) => (
-                    <li
-                      key={`${i}-${t}`}
-                      className="flex items-center justify-between gap-2 rounded-lg border border-white/5 bg-slate-900/40 px-3 py-2"
-                    >
-                      <span className="text-lg text-white">{t}</span>
-                      <button
-                        type="button"
-                        onClick={() => removeTask(i)}
-                        className="rounded-md p-2 text-slate-500 hover:bg-rose-500/10 hover:text-rose-300"
-                        aria-label={`Remove ${t}`}
-                      >
-                        <Trash2 className="h-5 w-5" />
-                      </button>
+                {mounted &&
+                  (tasks.length === 0 ? (
+                    <li className="text-base text-slate-500">
+                      No tasks — say &quot;capture note …&quot; or add above.
                     </li>
-                  ))
-                )}
+                  ) : (
+                    tasks.map((t, i) => (
+                      <li
+                        key={`${i}-${t}`}
+                        className="flex items-center justify-between gap-2 rounded-lg border border-white/5 bg-slate-900/40 px-3 py-2"
+                      >
+                        <span className="text-lg text-white">{t}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeTask(i)}
+                          className="rounded-md p-2 text-slate-500 hover:bg-rose-500/10 hover:text-rose-300"
+                          aria-label={`Remove ${t}`}
+                        >
+                          <Trash2 className="h-5 w-5" />
+                        </button>
+                      </li>
+                    ))
+                  ))}
               </ul>
             </motion.div>
 
@@ -275,7 +293,7 @@ export function DashboardView() {
                     >
                       <p className="text-lg text-white">{c.text}</p>
                       <p className="mt-1 font-mono text-xs text-slate-500">
-                        {new Date(c.at).toLocaleString()}
+                        {new Date(c.at).toISOString()}
                       </p>
                     </li>
                   ))
